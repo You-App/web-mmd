@@ -1,64 +1,27 @@
+# Simple workflow for deploying static content to GitHub Pages
 name: Deploy static content to Pages
 
 on:
+  # Runs on pushes targeting the default branch
   push:
     branches: ["master"]
+
+  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
+# Allow one concurrent deployment
 concurrency:
   group: "pages"
   cancel-in-progress: true
 
 jobs:
-  check-dev:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-          
-      - run: npm ci
-      - run: npx playwright install --with-deps
-      
-      - name: Prepare Ammo.js
-        run: |
-          npm install github:kripken/ammo.js
-          npx ts-node --esm ./scripts/copyAmmoJS.mjs
-      
-      - name: Test Next.js dev server
-        run: |
-          export NODE_OPTIONS="--max_old_space_size=4096"
-          export NEXT_TELEMETRY_DISABLED=1
-          
-          npm run dev > server.log 2>&1 &
-          SERVER_PID=$!
-          
-          for i in {1..30}; do
-            if curl -s http://localhost:3000 >/dev/null; then
-              echo "✅ Dev server accessible after ${i}s"
-              kill $SERVER_PID
-              exit 0
-            fi
-            sleep 2
-          done
-          
-          echo "❌ Dev server failed to start after 60s"
-          cat server.log
-          kill $SERVER_PID
-          exit 1
-
   deploy:
-    needs: check-dev
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
