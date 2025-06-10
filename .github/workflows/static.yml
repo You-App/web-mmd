@@ -15,7 +15,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Новый job для проверки dev-сервера
   check-dev:
     runs-on: ubuntu-latest
     steps:
@@ -31,22 +30,35 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps
       
-      - name: Test dev server startup
+      - name: Prepare Ammo.js
         run: |
-          npm run dev &
+          npm install github:kripken/ammo.js
+          npx ts-node --esm ./scripts/copyAmmoJS.mjs
+      
+      - name: Test Next.js dev server
+        run: |
+          export NODE_OPTIONS="--max_old_space_size=4096"
+          export NEXT_TELEMETRY_DISABLED=1
+          
+          npm run dev > server.log 2>&1 &
           SERVER_PID=$!
-          sleep 15
-          if ! curl -s http://localhost:3000 >/dev/null; then
-            echo "❌ Dev server failed to start"
-            kill $SERVER_PID
-            exit 1
-          fi
-          echo "✅ Dev server started successfully"
+          
+          for i in {1..30}; do
+            if curl -s http://localhost:3000 >/dev/null; then
+              echo "✅ Dev server accessible after ${i}s"
+              kill $SERVER_PID
+              exit 0
+            fi
+            sleep 2
+          done
+          
+          echo "❌ Dev server failed to start after 60s"
+          cat server.log
           kill $SERVER_PID
+          exit 1
 
-  # Существующий job
   deploy:
-    needs: check-dev  # Важно: добавляем зависимость
+    needs: check-dev
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
